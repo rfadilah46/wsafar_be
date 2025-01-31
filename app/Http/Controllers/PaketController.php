@@ -18,6 +18,8 @@ use App\Models\HargaTidakTermasuk;
 use App\Models\Keunggulan;
 //model SyaratKetentuan
 use App\Models\SyaratKetentuan;
+//fasiitas
+use App\Models\Fasilitas;
 
 use Illuminate\Support\Str;
 
@@ -36,7 +38,7 @@ class PaketController extends Controller
     {
         // Validasi input
         $validator = Validator::make($request->all(), [
-            'tipe_paket' => 'nullable|string',
+            'tipe_paket' => 'required|string',
             'nama_paket' => 'nullable|string',
             'durasi' => 'nullable|string',
             'pemberangkatan' => 'nullable|string',
@@ -60,6 +62,7 @@ class PaketController extends Controller
             'rating_hotel' => 'nullable|string',
             'tanggal_keberangkatan' => 'nullable|string',
             'keterangan' => 'nullable|string',
+            'fasilitas' => 'nullable|array',
         ]);
 
         if ($validator->fails()) {
@@ -111,6 +114,10 @@ class PaketController extends Controller
         // Tambahkan data Itinerari
         if ($request->has('itineraris')) {
             foreach ($request->itineraris as $itinerari) {
+                //jika $itinerari['name'] kosong, maka continue
+                if (empty($itinerari['name'])) {
+                    continue;
+                }else{
                 Itinerari::create([
                     'paket_id' => $paket->id,
                     'name' => $itinerari['name'],
@@ -118,6 +125,7 @@ class PaketController extends Controller
                     'tanggal' => $itinerari['tanggal'] ?? null,
                     'deskripsi' => $itinerari['deskripsi'] ?? null,
                 ]);
+                }
             }
         }
 
@@ -176,6 +184,7 @@ class PaketController extends Controller
                 ]);
             }
         }
+        
 
         // Tambahkan data SyaratKetentuan
         if ($request->has('syarat_ketentuans')) {
@@ -185,20 +194,38 @@ class PaketController extends Controller
                     'keterangan' => $syarat_ketentuan['keterangan'],
                 ]);
             }
+        } 
+   
+        //tamabah fasilitas 
+        if ($request->has('fasilitas')) {
+            foreach ($request->fasilitas as $fasilitas) {
+                //jika $fasilitas['name'] kosong, maka continue
+                if (empty($fasilitas['name'])) {
+                    continue;
+                }else{
+                    //jika tidak kosong, maka tambahkan data fasilitas
+                    Fasilitas::create([
+                        'paket_id' => $paket->id,
+                        'nama' => $fasilitas['name'],
+                    ]);
+                }
+            }
         }
 
         // Response JSON
         return response()->json([
             'success' => true,
             'message' => 'Paket berhasil dibuat',
-            'data' => $paket->load('hotels', 'itineraris', 'maskapais', 'pembimbings', 'hargaTermasuks', 'hargaTidakTermasuks', 'keunggulans', 'syaratKetentuans'),
+            'data' => $paket->load('hotels', 'itineraris', 'maskapais', 'pembimbings', 'hargaTermasuks', 'hargaTidakTermasuks', 'keunggulans', 'syaratKetentuans', 'fasilitas'),
         ]);
     }
 
     //index
-    public function index()
+    public function index(Request $request)
     {
-        $paket = Paket::with('hotels', 'itineraris', 'maskapais', 'pembimbings')->get(); 
+        $jenis = $request->jenis;
+        //get where jenis %like%
+        $paket = Paket::where('tipe_paket', 'like', "%$jenis%")->get();
         return response()->json([
             'success' => true,
             'message' => 'List Semua Paket',
@@ -210,7 +237,7 @@ class PaketController extends Controller
     //show
     public function view($slug)
     {
-        $paket = Paket::where('slug', $slug)->with('hotels', 'itineraris', 'maskapais', 'pembimbings', 'hargaTermasuks', 'hargaTidakTermasuks', 'keunggulans', 'syaratKetentuans')->first();
+        $paket = Paket::where('slug', $slug)->with('hotels', 'itineraris', 'maskapais', 'pembimbings', 'hargaTermasuks', 'hargaTidakTermasuks', 'keunggulans', 'syaratKetentuans', 'fasilitas')->first();
         if ($paket) {
             return response()->json([
                 'success' => true,
@@ -246,12 +273,12 @@ class PaketController extends Controller
         $image = $request->file('image');
         $extension = $image->getClientOriginalExtension();
 
-        // Generate nama file unik
+        // Generate nama file unik   
         $filename = pathinfo($image->getClientOriginalName(), PATHINFO_FILENAME);
         $timestamp = now()->format('dmYHis');
         $uniqueNumber = rand(100, 999); // 3 angka unik
-        $uniqueFilename = $filename . '_' . $timestamp . $uniqueNumber . '.' . $extension;
-
+        $uniqueFilename =  $timestamp . $uniqueNumber . '.' . $extension;
+ 
         // Simpan gambar ke folder 'img_uploads'
         $path = $image->storeAs('img_uploads', $uniqueFilename, 'public');
 
@@ -358,6 +385,10 @@ public function update(Request $request, $slug)
     if ($request->has('itineraris')) {
         $paket->itineraris()->delete();
         foreach ($request->itineraris as $itinerari) {
+            //jika $itinerari['name'] kosong, maka continue
+            if (empty($itinerari['name'])) {
+                continue;
+            }else{
             Itinerari::create([
                 'paket_id' => $paket->id,
                 'name' => $itinerari['name'],
@@ -365,6 +396,7 @@ public function update(Request $request, $slug)
                 'tanggal' => $itinerari['tanggal'] ?? null,
                 'deskripsi' => $itinerari['deskripsi'] ?? null,
             ]);
+        }
         }
     }
 
@@ -403,7 +435,7 @@ public function update(Request $request, $slug)
 
     // Update atau tambahkan data Keunggulan
     if ($request->has('keunggulans')) {
-        $paket->keungulans()->delete();
+        $paket->keunggulans()->delete();
         foreach ($request->keunggulans as $keunggulan) {
             Keunggulan::create([
                 'paket_id' => $paket->id,
@@ -420,6 +452,22 @@ public function update(Request $request, $slug)
                 'paket_id' => $paket->id,
                 'keterangan' => $syarat_ketentuan['keterangan'],
             ]);
+        }
+    }
+
+    // Update atau tambahkan data Fasilitas
+    if ($request->has('fasilitas')) {
+        $paket->fasilitas()->delete();
+        foreach ($request->fasilitas as $fasilitas) {
+            //jika $fasilitas['name'] kosong, maka continue
+            if (empty($fasilitas['name'])) {
+                continue;
+            }else{
+            Fasilitas::create([
+                'paket_id' => $paket->id,
+                'nama' => $fasilitas['name'],
+            ]);
+        }
         }
     }
 
@@ -458,7 +506,7 @@ public function update(Request $request, $slug)
     return response()->json([
         'success' => true,
         'message' => 'Paket berhasil diperbarui',
-        'data' => $paket->load('hotels', 'itineraris', 'maskapais'),
+        'data' => $paket->load('hotels', 'itineraris', 'maskapais', 'pembimbings', 'hargaTermasuks', 'hargaTidakTermasuks', 'keunggulans', 'syaratKetentuans', 'fasilitas'),
     ]);
 }
 
@@ -473,7 +521,7 @@ public function delete($slug)
             'success' => false,
             'message' => 'Paket tidak ditemukan',
         ], 404);
-    }
+    }  
 
     // Hapus data paket
     $paket->delete();

@@ -71,6 +71,13 @@ class Paket extends Model
         return $this->hasMany(SyaratKetentuan::class, 'paket_id');
     }
 
+    //fasilitas, hasmany
+    public function fasilitas()
+    {
+        return $this->hasMany(Fasilitas::class, 'paket_id');
+    }
+    
+
 
 
 
